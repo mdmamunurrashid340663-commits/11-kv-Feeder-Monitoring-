@@ -17,6 +17,9 @@ interface FaultEventDao {
     @Query("UPDATE fault_events SET isCleared = 1 WHERE id = :faultId")
     suspend fun markFaultCleared(faultId: Long)
 
+    @Query("UPDATE fault_events SET faultCause = :cause, rootCauseCategory = :category, actionTaken = :action, engineerName = :engineer WHERE id = :faultId")
+    suspend fun updateFaultCause(faultId: Long, cause: String, category: String, action: String, engineer: String)
+
     @Query("DELETE FROM fault_events")
     suspend fun clearAll()
 }

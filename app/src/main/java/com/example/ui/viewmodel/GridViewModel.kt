@@ -13,6 +13,7 @@ import com.example.data.local.FaultEventEntity
 import com.example.data.model.Esp32Config
 import com.example.data.model.FaultType
 import com.example.data.model.GridFeederState
+import com.example.data.model.SubstationState
 import com.example.data.remote.Esp32Client
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -35,8 +36,8 @@ class GridViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getInstance(application)
     private val espClient = Esp32Client()
 
-    private val _gridState = MutableStateFlow(GridFeederState())
-    val gridState: StateFlow<GridFeederState> = _gridState.asStateFlow()
+    private val _substationState = MutableStateFlow(SubstationState())
+    val substationState: StateFlow<SubstationState> = _substationState.asStateFlow()
 
     private val _espConfig = MutableStateFlow(Esp32Config())
     val espConfig: StateFlow<Esp32Config> = _espConfig.asStateFlow()
@@ -47,18 +48,22 @@ class GridViewModel(application: Application) : AndroidViewModel(application) {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    private val _selectedFeederIndex = MutableStateFlow(0)
-    val selectedFeederIndex: StateFlow<Int> = _selectedFeederIndex.asStateFlow()
+    private val _selectedFeederTab = MutableStateFlow(0) // 0: Feeder 1, 1: Feeder 2, 2: 33kV Substation Overview
+    val selectedFeederTab: StateFlow<Int> = _selectedFeederTab.asStateFlow()
 
     private val _isBengali = MutableStateFlow(true)
     val isBengali: StateFlow<Boolean> = _isBengali.asStateFlow()
+
+    private val _activeDialogFault = MutableStateFlow<FaultEventEntity?>(null)
+    val activeDialogFault: StateFlow<FaultEventEntity?> = _activeDialogFault.asStateFlow()
 
     val faultHistory: StateFlow<List<FaultEventEntity>> = db.faultEventDao()
         .getAllFaults()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private var pollingJob: Job? = null
-    private var lastLoggedFaultTimestamp: Long = 0L
+    private var lastLoggedFaultTime1: Long = 0L
+    private var lastLoggedFaultTime2: Long = 0L
 
     init {
         startPolling()
@@ -69,23 +74,30 @@ class GridViewModel(application: Application) : AndroidViewModel(application) {
         pollingJob = viewModelScope.launch {
             while (isActive) {
                 val config = _espConfig.value
-                val result = espClient.fetchGridData(config, _selectedFeederIndex.value)
+                val result = espClient.fetchSubstationData(config)
 
                 result.onSuccess { state ->
-                    _gridState.value = state
+                    _substationState.value = state
                     _connectionStatus.value = if (config.isSimulationMode) ConnectionStatus.SIMULATING else ConnectionStatus.CONNECTED
                     _errorMessage.value = null
 
-                    // If a fault is detected, trigger haptic and save to Room DB
-                    if (state.hasActiveFault && state.timestamp - lastLoggedFaultTimestamp > 3000L) {
-                        lastLoggedFaultTimestamp = state.timestamp
+                    // Monitor Feeder 1 Faults
+                    if (state.feeder1.hasActiveFault && state.feeder1.timestamp - lastLoggedFaultTime1 > 4000L) {
+                        lastLoggedFaultTime1 = state.feeder1.timestamp
                         triggerVibration()
-                        logFaultToDb(state)
+                        logFault(state.feeder1)
+                    }
+
+                    // Monitor Feeder 2 Faults
+                    if (state.feeder2.hasActiveFault && state.feeder2.timestamp - lastLoggedFaultTime2 > 4000L) {
+                        lastLoggedFaultTime2 = state.feeder2.timestamp
+                        triggerVibration()
+                        logFault(state.feeder2)
                     }
                 }.onFailure { ex ->
                     if (!config.isSimulationMode) {
                         _connectionStatus.value = ConnectionStatus.ERROR
-                        _errorMessage.value = ex.message ?: "ESP32 connection failed"
+                        _errorMessage.value = ex.message ?: "Connection error"
                     }
                 }
 
@@ -94,21 +106,27 @@ class GridViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun logFaultToDb(state: GridFeederState) {
+    private fun logFault(feeder: GridFeederState) {
         viewModelScope.launch {
             val entity = FaultEventEntity(
-                timestamp = state.timestamp,
-                feederId = state.feederId,
-                feederName = state.feederName,
-                faultCode = state.activeFaultType.code,
-                faultTitle = if (_isBengali.value) state.activeFaultType.titleBn else state.activeFaultType.titleEn,
-                faultCurrentA = state.faultCurrentPeakA,
-                phase = state.trippedPhase,
-                systemVoltageKv = state.phaseR.voltageKv,
-                activePowerAtTripMw = state.totalActivePowerMw,
-                isCleared = false
+                timestamp = feeder.timestamp,
+                feederId = feeder.feederId,
+                feederName = feeder.feederName,
+                faultCode = feeder.activeFaultType.code,
+                faultTitle = if (_isBengali.value) feeder.activeFaultType.titleBn else feeder.activeFaultType.titleEn,
+                faultCurrentA = feeder.faultCurrentPeakA,
+                phase = feeder.trippedPhase,
+                systemVoltageKv = feeder.phaseR.voltageKv,
+                activePowerAtTripMw = feeder.totalActivePowerMw,
+                isCleared = false,
+                faultCause = "",
+                rootCauseCategory = "গাছের ডাল স্পর্শ (Tree Branch)",
+                actionTaken = "লাইন পেট্রোলিং প্রক্রিয়াধীন",
+                engineerName = "Duty Engineer"
             )
-            db.faultEventDao().insertFault(entity)
+            val newId = db.faultEventDao().insertFault(entity)
+            // Automatically prompt the duty engineer to record the fault cause!
+            _activeDialogFault.value = entity.copy(id = newId)
         }
     }
 
@@ -124,16 +142,31 @@ class GridViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 200, 100, 300), -1))
+                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 250, 150, 350), -1))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(400)
+                vibrator?.vibrate(500)
             }
         } catch (_: Exception) {}
     }
 
-    fun selectFeeder(index: Int) {
-        _selectedFeederIndex.value = index
+    fun openFaultCauseDialog(fault: FaultEventEntity) {
+        _activeDialogFault.value = fault
+    }
+
+    fun dismissFaultCauseDialog() {
+        _activeDialogFault.value = null
+    }
+
+    fun saveFaultCause(faultId: Long, cause: String, category: String, action: String, engineer: String) {
+        viewModelScope.launch {
+            db.faultEventDao().updateFaultCause(faultId, cause, category, action, engineer)
+            _activeDialogFault.value = null
+        }
+    }
+
+    fun selectFeederTab(index: Int) {
+        _selectedFeederTab.value = index
     }
 
     fun toggleLanguage() {
@@ -146,20 +179,16 @@ class GridViewModel(application: Application) : AndroidViewModel(application) {
         startPolling()
     }
 
-    fun toggleBreaker() {
-        viewModelScope.launch {
-            val isClosed = _gridState.value.isBreakerClosed
-            val action = if (isClosed) "trip" else "reset"
-            espClient.sendBreakerCommand(_espConfig.value, action)
-        }
+    fun toggleBreaker(feederId: String) {
+        espClient.toggleBreaker(feederId)
     }
 
-    fun injectFault(faultType: FaultType, phase: String, faultCurrentA: Double) {
-        espClient.injectSimulatedFault(faultType, phase, faultCurrentA)
+    fun injectFault(feederId: String, faultType: FaultType, phase: String, faultCurrentA: Double) {
+        espClient.injectSimulatedFault(feederId, faultType, phase, faultCurrentA)
     }
 
-    fun resetFault() {
-        espClient.resetSimulatedFault()
+    fun resetFault(feederId: String) {
+        espClient.resetSimulatedFault(feederId)
     }
 
     fun clearFaultHistory() {

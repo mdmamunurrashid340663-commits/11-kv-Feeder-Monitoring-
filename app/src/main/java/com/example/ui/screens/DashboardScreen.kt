@@ -25,7 +25,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
@@ -40,6 +42,10 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +61,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.local.FaultEventEntity
+import com.example.data.model.GridFeederState
+import com.example.ui.components.FaultCauseDialog
 import com.example.ui.components.PhaseCard
 import com.example.ui.components.PowerGauge
 import com.example.ui.theme.ElectricCyan
@@ -72,13 +81,16 @@ fun DashboardScreen(
     viewModel: GridViewModel,
     modifier: Modifier = Modifier
 ) {
-    val gridState by viewModel.gridState.collectAsState()
+    val substationState by viewModel.substationState.collectAsState()
     val connStatus by viewModel.connectionStatus.collectAsState()
     val isBengali by viewModel.isBengali.collectAsState()
-    val selectedFeeder by viewModel.selectedFeederIndex.collectAsState()
+    val selectedTab by viewModel.selectedFeederTab.collectAsState()
     val espConfig by viewModel.espConfig.collectAsState()
+    val activeDialogFault by viewModel.activeDialogFault.collectAsState()
 
     var showBreakerConfirmDialog by remember { mutableStateOf(false) }
+
+    val activeFeeder: GridFeederState = if (selectedTab == 0) substationState.feeder1 else substationState.feeder2
 
     val scrollState = rememberScrollState()
 
@@ -88,30 +100,24 @@ fun DashboardScreen(
             .verticalScroll(scrollState)
             .padding(16.dp)
     ) {
-        // Top Connection & Source Banner
+        // Substation & Firebase Status Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val (statusColor, statusText) = when (connStatus) {
-                    ConnectionStatus.CONNECTED -> StatusNormalGreen to if (isBengali) "ESP32 সংযুক্ত (${espConfig.ipAddress})" else "ESP32 Connected"
-                    ConnectionStatus.CONNECTING -> ElectricGold to if (isBengali) "সংযোগ হচ্ছে..." else "Connecting..."
-                    ConnectionStatus.ERROR -> StatusFaultRed to if (isBengali) "সংযোগ বিচ্ছিন্ন" else "Offline"
-                    ConnectionStatus.SIMULATING -> ElectricCyan to if (isBengali) "১১ কেভি সিমুলেটর মোড" else "Substation Simulator Mode"
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(statusColor, CircleShape)
+                Icon(
+                    imageVector = Icons.Default.CloudDone,
+                    contentDescription = "Firebase",
+                    tint = StatusNormalGreen,
+                    modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                    color = statusColor
+                    text = if (isBengali) "ফায়ারবেস ক্লাউড সিঙ্ক: অ্যাক্টিভ" else "Firebase Cloud: Synchronized",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = StatusNormalGreen
                 )
             }
 
@@ -122,7 +128,7 @@ fun DashboardScreen(
                 Icon(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = "Refresh",
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(16.dp),
                     tint = ElectricCyan
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -134,46 +140,127 @@ fun DashboardScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        // Feeder Selection Horizontal Chips
-        val feederList = if (isBengali) {
-            listOf("ফিডার ০১: শিল্প এক্সপ্রেস", "ফিডার ০২: টাউন সেন্ট্রাল", "ফিডার ০৩: পল্লী বাণিজ্যিক")
-        } else {
-            listOf("Feeder 01: Industrial", "Feeder 02: Town Central", "Feeder 03: Rural Grid")
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // 33/11kV Substation Overview Banner
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF132338)),
+            border = BorderStroke(1.dp, Color(0xFF1F3D60))
         ) {
-            feederList.forEachIndexed { index, name ->
-                FilterChip(
-                    selected = selectedFeeder == index,
-                    onClick = { viewModel.selectFeeder(index) },
-                    label = { Text(name, style = MaterialTheme.typography.bodySmall) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = ElectricGold.copy(alpha = 0.2f),
-                        selectedLabelColor = ElectricGold,
-                        containerColor = GridCardNavy,
-                        labelColor = Color(0xFFCBD5E1)
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
-                        selected = selectedFeeder == index,
-                        borderColor = Color(0xFF263D5C),
-                        selectedBorderColor = ElectricGold
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBengali) "৩৩/১১ কেভি আউটডোর গ্রিড সাবস্টেশন" else "33/11 kV Outdoor Grid Substation",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (isBengali) "পাওয়ার ট্রান্সফরমার: ১০/১৪ MVA (${substationState.transformerLoadPercent}% লোড)" else "Power Transformer: 10/14 MVA (${substationState.transformerLoadPercent}% loaded)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = if (isBengali) "মোট সাবস্টেশন লোড" else "Total Substation Load",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ElectricGold
+                        )
+                        Text(
+                            text = "${String.format("%.2f", substationState.totalSubstationMw)} MW",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = ElectricGold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Bus Voltages Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "৩৩ কেভি বাস: ${String.format("%.1f", substationState.busVoltage33kv)} kV",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ElectricCyan
                     )
-                )
+                    Text(
+                        text = "১১ কেভি বাস: ${String.format("%.2f", substationState.busVoltage11kv)} kV",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ElectricCyan
+                    )
+                    Text(
+                        text = "ফ্রিকোয়েন্সি: 50.0 Hz",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFCBD5E1)
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Active Fault Alert Banner (if fault detected)
-        AnimatedVisibility(visible = gridState.hasActiveFault) {
+        // Dual Feeder Selection Tab
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = GridCardNavy,
+            contentColor = ElectricGold,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = ElectricGold
+                )
+            }
+        ) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { viewModel.selectFeederTab(0) },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (substationState.feeder1.hasActiveFault) {
+                            Box(modifier = Modifier.size(8.dp).background(StatusFaultRed, CircleShape))
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(
+                            text = if (isBengali) "ফিডার ০১: টাউন (${String.format("%.1f", substationState.feeder1.totalActivePowerMw)} MW)" else "Feeder 01: Town (${String.format("%.1f", substationState.feeder1.totalActivePowerMw)} MW)",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+                }
+            )
+
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { viewModel.selectFeederTab(1) },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (substationState.feeder2.hasActiveFault) {
+                            Box(modifier = Modifier.size(8.dp).background(StatusFaultRed, CircleShape))
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(
+                            text = if (isBengali) "ফিডার ০২: পল্লী (${String.format("%.1f", substationState.feeder2.totalActivePowerMw)} MW)" else "Feeder 02: Rural (${String.format("%.1f", substationState.feeder2.totalActivePowerMw)} MW)",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Active Fault Alert Banner (for the active feeder)
+        AnimatedVisibility(visible = activeFeeder.hasActiveFault) {
             val infiniteTransition = rememberInfiniteTransition(label = "alertTransition")
             val alertBorderColor by infiniteTransition.animateColor(
                 initialValue = StatusFaultRed,
@@ -205,45 +292,78 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = if (isBengali) "জরুরী: লাইনে ফল্ট ধরা পড়েছে!" else "CRITICAL: LINE FAULT DETECTED!",
+                                text = if (isBengali) "জরুরী: ${activeFeeder.feederNameBn}-এ ফল্ট ঘটেছে!" else "CRITICAL: FAULT ON ${activeFeeder.feederName}!",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = StatusFaultRed
                             )
                             Text(
-                                text = if (isBengali) gridState.activeFaultType.titleBn else gridState.activeFaultType.titleEn,
+                                text = if (isBengali) activeFeeder.activeFaultType.titleBn else activeFeeder.activeFaultType.titleEn,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                                 color = Color.White
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = if (isBengali) gridState.activeFaultType.descriptionBn else "Automatic relay protection tripped the Vacuum Circuit Breaker to prevent substation transformer damage.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFFFD5DA)
+                        text = if (isBengali)
+                            "পিক ফল্ট কারেন্ট: ${String.format("%.1f", activeFeeder.faultCurrentPeakA)} A (${activeFeeder.trippedPhase}) • ব্রেকার ট্রিপড"
+                        else
+                            "Peak Fault Current: ${String.format("%.1f", activeFeeder.faultCurrentPeakA)} A (${activeFeeder.trippedPhase}) • VCB Tripped",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = ElectricGold
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
+                    // Buttons: "ফল্টের কারণ লিখুন" (Requested Box) and "রিস্টোর"
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = if (isBengali) "সর্বোচ্চ ফল্ট কারেন্ট: ${String.format("%.1f", gridState.faultCurrentPeakA)} A (${gridState.trippedPhase})"
-                            else "Peak Fault Current: ${String.format("%.1f", gridState.faultCurrentPeakA)} A (${gridState.trippedPhase})",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = ElectricGold
-                        )
+                        // The button that opens the Fault Cause Input Box!
+                        Button(
+                            onClick = {
+                                val tempFault = FaultEventEntity(
+                                    feederId = activeFeeder.feederId,
+                                    feederName = activeFeeder.feederName,
+                                    faultCode = activeFeeder.activeFaultType.code,
+                                    faultTitle = if (isBengali) activeFeeder.activeFaultType.titleBn else activeFeeder.activeFaultType.titleEn,
+                                    faultCurrentA = activeFeeder.faultCurrentPeakA,
+                                    phase = activeFeeder.trippedPhase,
+                                    systemVoltageKv = activeFeeder.phaseR.voltageKv,
+                                    activePowerAtTripMw = activeFeeder.totalActivePowerMw
+                                )
+                                viewModel.openFaultCauseDialog(tempFault)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ElectricGold),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .testTag("btn_write_fault_cause")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.EditNote,
+                                contentDescription = "Edit Cause",
+                                tint = Color(0xFF1E1200),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isBengali) "ফল্টের কারণ লিখুন" else "Enter Fault Cause",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF1E1200)
+                            )
+                        }
 
                         Button(
-                            onClick = { viewModel.resetFault() },
+                            onClick = { viewModel.resetFault(activeFeeder.feederId) },
                             colors = ButtonDefaults.buttonColors(containerColor = StatusNormalGreen),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.testTag("clear_fault_button")
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("btn_restore_feeder")
                         ) {
                             Text(
                                 text = if (isBengali) "রিস্টোর" else "Restore",
@@ -256,34 +376,32 @@ fun DashboardScreen(
             }
         }
 
-        // Circular Active Power (MW) Gauge
+        // Circular Active Power (MW) Gauge for Selected Feeder
         PowerGauge(
-            currentMw = gridState.totalActivePowerMw,
-            maxMw = 6.0,
-            frequencyHz = gridState.systemFrequencyHz,
-            powerFactor = gridState.powerFactorAvg,
+            currentMw = activeFeeder.totalActivePowerMw,
+            maxMw = 5.0,
+            frequencyHz = activeFeeder.systemFrequencyHz,
+            powerFactor = activeFeeder.powerFactorAvg,
             isBengali = isBengali
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Grid Secondary Metrics (MVA, MVAR, Line Voltage, Neutral Current)
+        // Feeder Metrics (MVA, MVAR, Line Voltage, Neutral Current)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Apparent Power (MVA)
             MetricSmallCard(
-                title = if (isBengali) "মোট আপাত পাওয়ার" else "Apparent Power",
-                value = "${String.format("%.2f", gridState.totalApparentPowerMva)} MVA",
+                title = if (isBengali) "আপাত পাওয়ার" else "Apparent Power",
+                value = "${String.format("%.2f", activeFeeder.totalApparentPowerMva)} MVA",
                 accentColor = ElectricCyan,
                 modifier = Modifier.weight(1f)
             )
 
-            // Reactive Power (MVAR)
             MetricSmallCard(
                 title = if (isBengali) "রিঅ্যাক্টিভ পাওয়ার" else "Reactive Power",
-                value = "${String.format("%.2f", gridState.totalReactivePowerMvar)} MVAR",
+                value = "${String.format("%.2f", activeFeeder.totalReactivePowerMvar)} MVAR",
                 accentColor = StatusWarningAmber,
                 modifier = Modifier.weight(1f)
             )
@@ -295,8 +413,7 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 11kV Phase-to-Phase Line Voltage
-            val lineKv = (gridState.phaseR.voltageKv * 1.732)
+            val lineKv = (activeFeeder.phaseR.voltageKv * 1.732)
             MetricSmallCard(
                 title = if (isBengali) "লাইন ভোল্টেজ (V_L-L)" else "Line Voltage",
                 value = "${String.format("%.2f", lineKv)} kV",
@@ -304,35 +421,34 @@ fun DashboardScreen(
                 modifier = Modifier.weight(1f)
             )
 
-            // Neutral/Earth Current
             MetricSmallCard(
                 title = if (isBengali) "আর্থ/নিউট্রাল কারেন্ট" else "Earth Current",
-                value = "${String.format("%.1f", gridState.neutralCurrentA)} A",
-                accentColor = if (gridState.neutralCurrentA > 20.0) StatusFaultRed else PhaseNeutral,
+                value = "${String.format("%.1f", activeFeeder.neutralCurrentA)} A",
+                accentColor = if (activeFeeder.neutralCurrentA > 20.0) StatusFaultRed else PhaseNeutral,
                 modifier = Modifier.weight(1f)
             )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // 3-Phase Telemetry Section (R, Y, B)
+        // 3-Phase Telemetry Section (R, Y, B) for Active Feeder
         Text(
-            text = if (isBengali) "৩-ফেজ লাইভ টেলিমেট্রি (Phase Telemetry)" else "3-Phase Telemetry",
+            text = if (isBengali) "${activeFeeder.feederNameBn} ৩-ফেজ কারেন্ট ও ভোল্টেজ" else "${activeFeeder.feederName} Phase Telemetry",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = Color(0xFFF1F5F9)
         )
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        PhaseCard(phase = gridState.phaseR, isBengali = isBengali)
+        PhaseCard(phase = activeFeeder.phaseR, isBengali = isBengali)
         Spacer(modifier = Modifier.height(8.dp))
-        PhaseCard(phase = gridState.phaseY, isBengali = isBengali)
+        PhaseCard(phase = activeFeeder.phaseY, isBengali = isBengali)
         Spacer(modifier = Modifier.height(8.dp))
-        PhaseCard(phase = gridState.phaseB, isBengali = isBengali)
+        PhaseCard(phase = activeFeeder.phaseB, isBengali = isBengali)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Substation Vacuum Circuit Breaker (VCB) Master Control
+        // Vacuum Circuit Breaker (VCB) Control for Active Feeder
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -351,23 +467,23 @@ fun DashboardScreen(
                         Icon(
                             imageVector = Icons.Default.Power,
                             contentDescription = "Breaker",
-                            tint = if (gridState.isBreakerClosed) StatusNormalGreen else StatusFaultRed,
+                            tint = if (activeFeeder.isBreakerClosed) StatusNormalGreen else StatusFaultRed,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = if (isBengali) "ভ্যাকুয়াম সার্কিট ব্রেকার (VCB)" else "Vacuum Circuit Breaker (VCB)",
+                                text = "${activeFeeder.feederName} VCB",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = Color.White
                             )
                             Text(
-                                text = if (gridState.isBreakerClosed)
-                                    (if (isBengali) "সার্কিট ব্রেকার ক্লোজড (লাইন সচল)" else "VCB CLOSED (Feeder Energized)")
+                                text = if (activeFeeder.isBreakerClosed)
+                                    (if (isBengali) "সার্কিট ব্রেকার ক্লোজড (সচল)" else "VCB CLOSED (Energized)")
                                 else
-                                    (if (isBengali) "সার্কিট ব্রেকার ওপেন/ট্রিপড (লাইন বন্ধ)" else "VCB TRIPPED (Feeder Isolated)"),
+                                    (if (isBengali) "সার্কিট ব্রেকার ট্রিপড (বন্ধ)" else "VCB TRIPPED (Isolated)"),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (gridState.isBreakerClosed) StatusNormalGreen else StatusFaultRed
+                                color = if (activeFeeder.isBreakerClosed) StatusNormalGreen else StatusFaultRed
                             )
                         }
                     }
@@ -375,13 +491,13 @@ fun DashboardScreen(
                     Button(
                         onClick = { showBreakerConfirmDialog = true },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (gridState.isBreakerClosed) StatusFaultRed else StatusNormalGreen
+                            containerColor = if (activeFeeder.isBreakerClosed) StatusFaultRed else StatusNormalGreen
                         ),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.testTag("toggle_breaker_button")
                     ) {
                         Text(
-                            text = if (gridState.isBreakerClosed)
+                            text = if (activeFeeder.isBreakerClosed)
                                 (if (isBengali) "ট্রিপ করুন" else "Trip VCB")
                             else
                                 (if (isBengali) "ক্লোজ করুন" else "Close VCB"),
@@ -393,67 +509,30 @@ fun DashboardScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Total Energy Accumulated
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF132030))
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.ElectricBolt,
-                        contentDescription = "Energy",
-                        tint = ElectricGold,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isBengali) "মোট ব্যবহৃত বিদ্যুৎ (Energy)" else "Total Energy Delivered",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF94A3B8)
-                    )
-                }
-                Text(
-                    text = "${String.format("%.1f", gridState.energyMwh)} MWh",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = ElectricGold
-                )
-            }
-        }
-
         Spacer(modifier = Modifier.height(24.dp))
     }
 
-    // Confirmation Dialog for Circuit Breaker Action
+    // Breaker Toggle Confirmation Dialog
     if (showBreakerConfirmDialog) {
-        val actionText = if (gridState.isBreakerClosed)
-            (if (isBengali) "১১ কেভি ফিডার লাইন ট্রিপ (বিচ্ছিন্ন)" else "TRIP (De-energize)")
+        val actionText = if (activeFeeder.isBreakerClosed)
+            (if (isBengali) "${activeFeeder.feederNameBn} লাইন ট্রিপ (বিচ্ছিন্ন)" else "TRIP ${activeFeeder.feederName}")
         else
-            (if (isBengali) "ফিডার লাইন পুনরায় ক্লোজ (চালু)" else "CLOSE (Energize)")
+            (if (isBengali) "${activeFeeder.feederNameBn} লাইন পুনরায় চালু (ক্লোজ)" else "CLOSE ${activeFeeder.feederName}")
 
         AlertDialog(
             onDismissRequest = { showBreakerConfirmDialog = false },
             title = {
                 Text(
-                    text = if (isBengali) "সার্কিট ব্রেকার নিশ্চিতকরণ" else "Breaker Command Confirmation",
+                    text = if (isBengali) "ব্রেকার কমান্ড নিশ্চিতকরণ" else "Confirm VCB Command",
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
                     text = if (isBengali)
-                        "আপনি কি নিশ্চিত যে ESP32 রিলে পিনের মাধ্যমে $actionText করতে চান?"
+                        "আপনি কি নিশ্চিত যে ESP32 রিলে আউটপুটের মাধ্যমে $actionText করতে চান?"
                     else
-                        "Are you sure you want to $actionText the 11kV Feeder Breaker via ESP32 relay GPIO?",
+                        "Are you sure you want to $actionText via the ESP32 relay trigger?",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -461,19 +540,31 @@ fun DashboardScreen(
                 Button(
                     onClick = {
                         showBreakerConfirmDialog = false
-                        viewModel.toggleBreaker()
+                        viewModel.toggleBreaker(activeFeeder.feederId)
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (gridState.isBreakerClosed) StatusFaultRed else StatusNormalGreen
+                        containerColor = if (activeFeeder.isBreakerClosed) StatusFaultRed else StatusNormalGreen
                     )
                 ) {
-                    Text(if (isBengali) "হ্যাঁ, কমান্ড পাঠান" else "Confirm Command")
+                    Text(if (isBengali) "হ্যাঁ, কমান্ড পাঠান" else "Confirm")
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { showBreakerConfirmDialog = false }) {
                     Text(if (isBengali) "বাতিল" else "Cancel")
                 }
+            }
+        )
+    }
+
+    // The Interactive Fault Cause Dialog (Shown when duty engineer records cause)
+    activeDialogFault?.let { fault ->
+        FaultCauseDialog(
+            faultEvent = fault,
+            isBengali = isBengali,
+            onDismiss = { viewModel.dismissFaultCauseDialog() },
+            onSaveCause = { cause, category, action, engineer ->
+                viewModel.saveFaultCause(fault.id, cause, category, action, engineer)
             }
         )
     }

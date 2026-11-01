@@ -81,7 +81,7 @@ fun MainAppScreen(
 ) {
     var currentTab by rememberSaveable { mutableIntStateOf(0) }
     val isBengali by viewModel.isBengali.collectAsState()
-    val gridState by viewModel.gridState.collectAsState()
+    val substationState by viewModel.substationState.collectAsState()
     val connStatus by viewModel.connectionStatus.collectAsState()
     val espConfig by viewModel.espConfig.collectAsState()
 
@@ -100,12 +100,12 @@ fun MainAppScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = if (isBengali) "১১ কেভি গ্রিড ও ফল্ট মনিটর" else "11kV Grid & Fault Monitor",
+                                text = if (isBengali) "৩৩/১১ কেভি সাবস্টেশন ও ফল্ট মনিটর" else "33/11kV Substation & Fault Watch",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = Color.White
                             )
                             Text(
-                                text = if (espConfig.isSimulationMode) "SIMULATION MODE • 11.0 kV Feeder" else "ESP32 IoT (${espConfig.ipAddress})",
+                                text = if (espConfig.isSimulationMode) "২টি ফিডার • সিমুলেশন মোড" else "Firebase Cloud (${espConfig.firebaseProjectId})",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (espConfig.isSimulationMode) ElectricCyan else StatusNormalGreen
                             )
@@ -166,7 +166,7 @@ fun MainAppScreen(
                     selected = currentTab == 1,
                     onClick = { currentTab = 1 },
                     icon = {
-                        if (gridState.hasActiveFault) {
+                        if (substationState.hasAnyFault) {
                             BadgedBox(
                                 badge = {
                                     Badge(containerColor = StatusFaultRed) {

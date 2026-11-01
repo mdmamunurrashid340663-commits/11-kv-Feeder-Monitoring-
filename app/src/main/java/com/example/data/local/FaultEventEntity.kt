@@ -16,5 +16,9 @@ data class FaultEventEntity(
     val phase: String,
     val systemVoltageKv: Double,
     val activePowerAtTripMw: Double,
-    val isCleared: Boolean = false
+    val isCleared: Boolean = false,
+    val faultCause: String = "",
+    val rootCauseCategory: String = "",
+    val actionTaken: String = "",
+    val engineerName: String = ""
 )

@@ -64,6 +64,10 @@ fun SettingsScreen(
     var port by remember(currentConfig) { mutableStateOf(currentConfig.port.toString()) }
     var isSimMode by remember(currentConfig) { mutableStateOf(currentConfig.isSimulationMode) }
 
+    var useFirebase by remember(currentConfig) { mutableStateOf(currentConfig.useFirebaseSync) }
+    var firebaseProjectId by remember(currentConfig) { mutableStateOf(currentConfig.firebaseProjectId) }
+    var firebaseDbUrl by remember(currentConfig) { mutableStateOf(currentConfig.firebaseDbUrl) }
+
     var ctPrimary by remember(currentConfig) { mutableStateOf(currentConfig.ctPrimaryA.toString()) }
     var ctSecondary by remember(currentConfig) { mutableStateOf(currentConfig.ctSecondaryA.toString()) }
 
@@ -189,6 +193,70 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("input_esp_port"),
+                            colors = outlinedColors()
+                        )
+                    }
+                }
+            }
+        }
+
+        // Firebase Cloud Database Sync Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = GridCardNavy),
+                border = BorderStroke(1.dp, Color(0xFF263D5C))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = if (isBengali) "ফায়ারবেস ক্লাউড ডাটাবেস (Firebase Sync)" else "Firebase Cloud Synchronization",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (isBengali) "ESP32 থেকে সরাসরি ফায়ারবেসে ডাটা পুশ ও রিড" else "Direct ESP32-to-Firebase cloud relay",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
+
+                        Switch(
+                            checked = useFirebase,
+                            onCheckedChange = { useFirebase = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = StatusNormalGreen,
+                                checkedTrackColor = StatusNormalGreen.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+
+                    if (useFirebase) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = firebaseDbUrl,
+                            onValueChange = { firebaseDbUrl = it },
+                            label = { Text("Firebase Database URL") },
+                            placeholder = { Text("https://substation-33-11kv-default-rtdb.firebaseio.com") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = outlinedColors()
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = firebaseProjectId,
+                            onValueChange = { firebaseProjectId = it },
+                            label = { Text("Firebase Project ID") },
+                            placeholder = { Text("substation-33-11kv") },
+                            modifier = Modifier.fillMaxWidth(),
                             colors = outlinedColors()
                         )
                     }
@@ -359,6 +427,9 @@ fun SettingsScreen(
                         ipAddress = ipAddress,
                         port = port.toIntOrNull() ?: 80,
                         isSimulationMode = isSimMode,
+                        useFirebaseSync = useFirebase,
+                        firebaseProjectId = firebaseProjectId,
+                        firebaseDbUrl = firebaseDbUrl,
                         ctPrimaryA = ctPrimary.toDoubleOrNull() ?: 200.0,
                         ctSecondaryA = ctSecondary.toDoubleOrNull() ?: 5.0,
                         ptPrimaryV = ptPrimary.toDoubleOrNull() ?: 11000.0,

@@ -21,12 +21,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Construction
+import androidx.compose.material.icons.filled.IntegrationInstructions
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -68,12 +68,12 @@ fun Esp32GuideScreen(
     val context = LocalContext.current
 
     var selectedSection by remember { mutableStateOf(0) }
-    // 0: Step by Step Guide, 1: Hardware & Pinout, 2: Arduino C++ Code
+    // 0: 5-Step Project Roadmap, 1: Hardware Pinout, 2: Complete Arduino Firebase C++ Code
 
     val tabs = if (isBengali) {
-        listOf("১. ধাপে ধাপে গাইড", "২. পিনআউট ও কম্পোনেন্ট", "৩. ESP32 সি++ কোড")
+        listOf("১. স্টেপ-বাই-স্টেপ প্রজেক্ট গাইড", "২. পিনআউট ও ওয়্যারিং", "৩. ESP32 + Firebase C++ কোড")
     } else {
-        listOf("1. Step-by-Step Guide", "2. Hardware Pinout", "3. Arduino C++ Code")
+        listOf("1. Step-by-Step Project Guide", "2. Pinout & Wiring", "3. ESP32 + Firebase Code")
     }
 
     LazyColumn(
@@ -94,13 +94,13 @@ fun Esp32GuideScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.Memory,
-                            contentDescription = "ESP32 IoT Hub",
+                            contentDescription = "Project Guide",
                             tint = ElectricCyan,
                             modifier = Modifier.size(28.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = if (isBengali) "১১ কেভি মেগাওয়াট ও ফল্ট মনিটরিং গাইড" else "11kV Grid MW & Fault Telemetry Guide",
+                            text = if (isBengali) "৩৩/১১ কেভি সাবস্টেশন IoT প্রজেক্ট গাইড" else "33/11kV Substation IoT Project Guide",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color.White
                         )
@@ -110,9 +110,9 @@ fun Esp32GuideScreen(
 
                     Text(
                         text = if (isBengali)
-                            "ESP32 দিয়ে ১১ কেভি লাইনের মেগাওয়াট পরিমাপ এবং ক্ষতিকর ফল্ট কারেন্ট শনাক্ত করার সম্পূর্ণ কারিগরি ডায়াগ্রাম, ফর্মুলা ও তৈরি সোর্স কোড।"
+                            "ESP32 দিয়ে ২টি ১১ কেভি ফিডারের মেগাওয়াট লোড পরিমাপ, ফল্ট ডিটেকশন, ফায়ারবেস ক্লাউড সিঙ্ক এবং অ্যাপে কারণ লিখে সেভ করার সম্পূর্ণ প্রজেক্ট তৈরির ধাপসমূহ।"
                         else
-                            "Complete technical engineering documentation, formulas, and production-ready ESP32 Arduino C++ firmware for 11kV substation monitoring.",
+                            "Complete step-by-step engineering implementation for dual-feeder MW power monitoring, fault detection, and Firebase sync with cause logging.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFFCBD5E1)
                     )
@@ -120,7 +120,7 @@ fun Esp32GuideScreen(
             }
         }
 
-        // Section Tabs
+        // Section Filter Chips
         item {
             Row(
                 modifier = Modifier
@@ -152,8 +152,8 @@ fun Esp32GuideScreen(
 
         when (selectedSection) {
             0 -> {
-                // Step-by-Step Practical Engineering Guide in Bengali / English
-                items(Esp32HardwareGuide.STEPS_BN) { step ->
+                // Step-by-Step Practical Engineering Guide
+                items(Esp32HardwareGuide.STEP_BY_STEP_PROJECT_GUIDE) { step ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -161,14 +161,39 @@ fun Esp32GuideScreen(
                         border = BorderStroke(1.dp, Color(0xFF263D5C))
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .background(ElectricGold.copy(alpha = 0.2f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = step.stepNumber,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = ElectricGold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = step.title,
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             Text(
-                                text = step.title,
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = ElectricGold
+                                text = step.summary,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = ElectricCyan
                             )
+
                             Spacer(modifier = Modifier.height(6.dp))
+
                             Text(
-                                text = step.description,
+                                text = step.details,
                                 style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp),
                                 color = Color(0xFFE2E8F0)
                             )
@@ -178,75 +203,39 @@ fun Esp32GuideScreen(
             }
 
             1 -> {
-                // Hardware Pinout and Components
+                // Hardware Pinout Table for 2 Feeders
                 item {
                     Text(
-                        text = if (isBengali) "প্রয়োজনীয় যন্ত্রাংশ তালিকা (Bill of Materials)" else "Hardware Components",
+                        text = if (isBengali) "ESP32 ডুয়াল ফিডার পিন কানেকশন ম্যাপ" else "ESP32 Dual-Feeder Pinout Table",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = Color.White
                     )
                 }
 
-                items(Esp32HardwareGuide.HARDWARE_COMPONENTS) { comp ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = GridCardNavy)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = comp.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = comp.specs,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFF94A3B8)
-                                )
-                            }
-                        }
-                    }
-                }
-
                 item {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = if (isBengali) "ESP32 পিন কানেকশন ম্যাপ (Pinout Table)" else "ESP32 Pinout Mapping",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = GridCardNavy)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            PinRow("GPIO 34 (ADC1)", "VR (Phase R Voltage Sensor)", "ZMPT101B Module 1")
-                            PinRow("GPIO 35 (ADC1)", "VY (Phase Y Voltage Sensor)", "ZMPT101B Module 2")
-                            PinRow("GPIO 32 (ADC1)", "VB (Phase B Voltage Sensor)", "ZMPT101B Module 3")
-                            PinRow("GPIO 33 (ADC1)", "IR (Phase R Current)", "CT 200/5A + Burden 0.33Ω")
-                            PinRow("GPIO 25 (ADC2)", "IY (Phase Y Current)", "CT 200/5A + Burden 0.33Ω")
-                            PinRow("GPIO 26 (ADC2)", "IB (Phase B Current)", "CT 200/5A + Burden 0.33Ω")
-                            PinRow("GPIO 27 (ADC2)", "IN (Earth/Neutral Current)", "Core-Balance CT (CBCT)")
-                            PinRow("GPIO 4 (DO)", "VCB Trip Relay Output", "5V Relay -> VCB Trip Coil")
-                            PinRow("GPIO 2 (DO)", "Status / Fault Warning LED", "Onboard Blue LED")
+                            PinRow("GPIO 34 (ADC1)", "ফিডার ০১ Phase R কারেন্ট", "CT 200/5A + 0.33Ω Burden")
+                            PinRow("GPIO 35 (ADC1)", "ফিডার ০১ Phase Y কারেন্ট", "CT 200/5A + 0.33Ω Burden")
+                            PinRow("GPIO 32 (ADC1)", "ফিডার ০১ Phase B কারেন্ট", "CT 200/5A + 0.33Ω Burden")
+                            PinRow("GPIO 33 (ADC1)", "ফিডার ০২ Phase R কারেন্ট", "CT 200/5A + 0.33Ω Burden")
+                            PinRow("GPIO 25 (ADC2)", "ফিডার ০২ Phase Y কারেন্ট", "CT 200/5A + 0.33Ω Burden")
+                            PinRow("GPIO 26 (ADC2)", "ফিডার ০২ Phase B কারেন্ট", "CT 200/5A + 0.33Ω Burden")
+                            PinRow("GPIO 27 (ADC2)", "১১ কেভি বাস ভোল্টেজ (VR)", "PT 11000/110V + ZMPT101B")
+                            PinRow("GPIO 4 (DO)", "ফিডার ০১ VCB ট্রিপ রিলে", "5V Relay -> VCB 1 Trip Coil")
+                            PinRow("GPIO 5 (DO)", "ফিডার ০২ VCB ট্রিপ রিলে", "5V Relay -> VCB 2 Trip Coil")
+                            PinRow("GPIO 2 (DO)", "ফল্ট সতর্কতা ইন্ডিকেটর", "Onboard Blue LED")
                         }
                     }
                 }
             }
 
             2 -> {
-                // Arduino C++ Code
+                // Complete Arduino C++ Code with Firebase Realtime Database
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -268,7 +257,7 @@ fun Esp32GuideScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "esp32_11kv_grid_monitor.ino",
+                                        text = "esp32_substation_firebase.ino",
                                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                         color = Color.White
                                     )
@@ -277,13 +266,13 @@ fun Esp32GuideScreen(
                                 Button(
                                     onClick = {
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        val clip = ClipData.newPlainText("ESP32 Arduino Code", Esp32HardwareGuide.COMPLETE_ARDUINO_CODE)
+                                        val clip = ClipData.newPlainText("ESP32 Firebase Arduino Code", Esp32HardwareGuide.COMPLETE_ARDUINO_FIREBASE_CODE)
                                         clipboard.setPrimaryClip(clip)
-                                        Toast.makeText(context, if (isBengali) "কোড কপি করা হয়েছে!" else "Arduino Code copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, if (isBengali) "ফায়ারবেস কোড কপি করা হয়েছে!" else "Arduino Firebase Code copied!", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan),
                                     shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.testTag("copy_arduino_code_btn")
+                                    modifier = Modifier.testTag("copy_firebase_arduino_code")
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.ContentCopy,
@@ -309,7 +298,7 @@ fun Esp32GuideScreen(
                                     .padding(12.dp)
                             ) {
                                 Text(
-                                    text = Esp32HardwareGuide.COMPLETE_ARDUINO_CODE,
+                                    text = Esp32HardwareGuide.COMPLETE_ARDUINO_FIREBASE_CODE,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 11.sp,
                                     color = Color(0xFF98C379),
@@ -337,7 +326,7 @@ fun PinRow(pin: String, function: String, device: String) {
             text = pin,
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
             color = ElectricCyan,
-            modifier = Modifier.width(110.dp)
+            modifier = Modifier.width(120.dp)
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(

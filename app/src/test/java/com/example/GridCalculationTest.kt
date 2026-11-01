@@ -46,4 +46,22 @@ class GridCalculationTest {
         assertEquals("50", FaultType.OVERCURRENT_50.code)
         assertEquals("50N", FaultType.EARTH_FAULT_50N.code)
     }
+
+    @Test
+    fun testDualFeederSubstationTotalMw() {
+        val f1 = com.example.data.model.GridFeederState(
+            feederId = "FDR-01",
+            totalActivePowerMw = 2.85
+        )
+        val f2 = com.example.data.model.GridFeederState(
+            feederId = "FDR-02",
+            totalActivePowerMw = 2.15
+        )
+        val substation = com.example.data.model.SubstationState(
+            feeder1 = f1,
+            feeder2 = f2
+        )
+
+        assertEquals(5.00, substation.totalSubstationMw, 0.001)
+    }
 }
