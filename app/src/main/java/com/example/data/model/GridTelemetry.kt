@@ -1,0 +1,112 @@
+package com.example.data.model
+
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+
+enum class FaultType(
+    val code: String,
+    val titleBn: String,
+    val titleEn: String,
+    val descriptionBn: String,
+    val isSevere: Boolean
+) {
+    NONE(
+        code = "NORMAL",
+        titleBn = "স্বাভাবিক অবস্থা",
+        titleEn = "Normal System Health",
+        descriptionBn = "১১ কেভি লাইনের সমস্ত ফেজ ভোল্টেজ এবং লোড কারেন্ট নিরাপদ সীমার মধ্যে আছে।",
+        isSevere = false
+    ),
+    OVERCURRENT_50(
+        code = "50",
+        titleBn = "ইনস্ট্যান্টেনিয়াস ওভারকারেন্ট (ANSI 50)",
+        titleEn = "Instantaneous Overcurrent",
+        descriptionBn = "লাইনের লোড কারেন্ট নির্ধারিত চরম সীমা অতিক্রম করেছে। ব্রেকার ট্রিপ কমান্ড জারি হয়েছে।",
+        isSevere = true
+    ),
+    OVERCURRENT_51(
+        code = "51",
+        titleBn = "টাইমড আইডিএমটি ওভারকারেন্ট (ANSI 51)",
+        titleEn = "IDMT Timed Overcurrent",
+        descriptionBn = "দীর্ঘক্ষণ ধরে লাইন অতিরিক্ত লোড বহন করছে (IDMT কার্ভ অনুযায়ী ট্রিপ)।",
+        isSevere = true
+    ),
+    EARTH_FAULT_50N(
+        code = "50N",
+        titleBn = "আর্থ ফল্ট কারেন্ট (ANSI 50N/51N)",
+        titleEn = "Earth Fault Detection",
+        descriptionBn = "ফেজ কারেন্টের ভারসাম্যহীনতা বা মাটিতে বিদ্যুৎ ক্ষরণ (Zero-sequence current) ধরা পড়েছে।",
+        isSevere = true
+    ),
+    SHORT_CIRCUIT_PHASE(
+        code = "50-2P",
+        titleBn = "ফেজ-টু-ফেজ শর্ট সার্কিট",
+        titleEn = "Phase-to-Phase Short Circuit",
+        descriptionBn = "দুটি ফেজের মধ্যে সরাসরি শর্ট সার্কিট এবং উচ্চ মাত্রার ক্ষতিকর ফল্ট কারেন্ট উৎপন্ন হয়েছে।",
+        isSevere = true
+    ),
+    UNDER_VOLTAGE_27(
+        code = "27",
+        titleBn = "আন্ডার-ভোল্টেজ ফল্ট (ANSI 27)",
+        titleEn = "Under-Voltage Warning",
+        descriptionBn = "১১ কেভি বাস ভোল্টেজ ৯.৫ কেভির নিচে নেমে গেছে (গ্রিড স্যাগ বা পাওয়ার ড্রপ)।",
+        isSevere = false
+    ),
+    OVER_VOLTAGE_59(
+        code = "59",
+        titleBn = "ওভার-ভোল্টেজ ফল্ট (ANSI 59)",
+        titleEn = "Over-Voltage Warning",
+        descriptionBn = "বাস ভোল্টেজ ১২.২ কেভির উপরে উঠে গেছে (সার্জ বা ক্যাপাসিটর ব্যাংক সমস্যা)।",
+        isSevere = false
+    )
+}
+
+@JsonClass(generateAdapter = true)
+data class PhaseMeasurement(
+    val phase: String, // "R", "Y", "B"
+    val voltageKv: Double,
+    val currentA: Double,
+    val activePowerMw: Double,
+    val reactivePowerMvar: Double,
+    val powerFactor: Double,
+    val isTripped: Boolean = false
+)
+
+@JsonClass(generateAdapter = true)
+data class GridFeederState(
+    val feederId: String = "FDR-11KV-01",
+    val feederName: String = "11kV Industrial Feeder 01",
+    val feederNameBn: String = "১১ কেভি ইন্ডাস্ট্রিয়াল ফিডার ০১",
+    val totalActivePowerMw: Double = 3.42,
+    val totalReactivePowerMvar: Double = 1.12,
+    val totalApparentPowerMva: Double = 3.60,
+    val systemFrequencyHz: Double = 50.02,
+    val powerFactorAvg: Double = 0.95,
+    val energyMwh: Double = 1248.5,
+    val phaseR: PhaseMeasurement = PhaseMeasurement("R", 6.35, 185.0, 1.14, 0.38, 0.95),
+    val phaseY: PhaseMeasurement = PhaseMeasurement("Y", 6.34, 182.5, 1.13, 0.37, 0.95),
+    val phaseB: PhaseMeasurement = PhaseMeasurement("B", 6.36, 187.2, 1.15, 0.37, 0.95),
+    val neutralCurrentA: Double = 4.2,
+    val isBreakerClosed: Boolean = true,
+    val hasActiveFault: Boolean = false,
+    val activeFaultType: FaultType = FaultType.NONE,
+    val faultCurrentPeakA: Double = 0.0,
+    val trippedPhase: String = "None",
+    val lastTripTimestamp: Long = 0L,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class Esp32Config(
+    val ipAddress: String = "192.168.4.1",
+    val port: Int = 80,
+    val isSimulationMode: Boolean = true,
+    val ctPrimaryA: Double = 200.0,
+    val ctSecondaryA: Double = 5.0,
+    val ptPrimaryV: Double = 11000.0,
+    val ptSecondaryV: Double = 110.0,
+    val overcurrentThresholdA: Double = 350.0,
+    val earthFaultThresholdA: Double = 25.0
+) {
+    val ctRatio: Double get() = if (ctSecondaryA > 0) ctPrimaryA / ctSecondaryA else 40.0
+    val ptRatio: Double get() = if (ptSecondaryV > 0) ptPrimaryV / ptSecondaryV else 100.0
+}

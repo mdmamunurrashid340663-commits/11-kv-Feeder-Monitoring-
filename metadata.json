@@ -1,0 +1,6 @@
+{
+  "name": "Grid11kV",
+  "description": "ESP32 11kV Substation Power (MW) and Fault Current Monitoring & Protection System",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
